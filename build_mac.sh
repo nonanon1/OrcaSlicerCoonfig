@@ -3,7 +3,7 @@ echo "Building OrcaSlicer Configuration Manager for Mac..."
 echo
 
 # Install PyInstaller if not already installed
-pip3 install pyinstaller
+python -m pip install pyinstaller
 
 # Clean previous builds
 rm -rf build dist *.spec
