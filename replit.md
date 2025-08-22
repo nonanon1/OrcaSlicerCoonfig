@@ -10,13 +10,31 @@ Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Application Structure
+### Enhanced Application Architecture
 The application follows a modular architecture with clear separation of concerns:
 
 - **Entry Point**: `main.py` serves as the application launcher with argument parsing for different execution modes
 - **Core Logic**: `orca_backup.py` contains the main backup and restore functionality
-- **User Interfaces**: Dual interface approach with `cli.py` for command-line interaction and `gui.py` for graphical interface
+- **User Interfaces**: Single GUI interface with `gui.py` providing comprehensive graphical interaction
 - **Utilities**: `utils.py` provides cross-platform path detection and file validation services
+- **Cloud Integration**: `cloud_storage.py` provides Google Drive and iCloud synchronization capabilities
+
+### Professional Build System with Dependency Resolution
+The build scripts include sophisticated dependency management with multiple installation strategies:
+
+#### macOS Build Features (`build_mac.sh`):
+- **Automatic Python Installation**: Homebrew integration with fallback to manual installation
+- **Interactive Installation Selection**: Multiple pip installation methods to handle permission issues
+- **Virtual Environment Support**: Isolated dependency installation for system safety
+- **Permission Handling**: User directory installs, system override options with warnings
+- **PATH Management**: Automatic PATH updates for Homebrew and user installations
+
+#### Windows Build Features (`build_windows.bat`):
+- **Automatic Python Detection**: Scans common installation paths and fixes PATH issues
+- **Download Integration**: Automatic Python installer download and silent installation
+- **Permission Escalation**: Administrative privilege handling with user fallbacks
+- **Multiple Installation Methods**: System, user, and virtual environment options
+- **Registry Management**: PATH variable updates through system and user registry
 
 ### Cross-Platform Design
 The system is designed to work across Windows, macOS, and Linux platforms by abstracting platform-specific path detection logic in the `OrcaSlicerPaths` utility class. This approach allows the core backup functionality to remain platform-agnostic while handling OS-specific configuration directory locations.
@@ -38,9 +56,20 @@ The system implements comprehensive error handling through the `FileValidator` c
 ### Core Dependencies
 - **Python Standard Library**: The application primarily relies on built-in Python modules including `tkinter` for GUI, `zipfile` for archive handling, `pathlib` for cross-platform path management, and `argparse` for command-line parsing
 - **Threading Module**: Used in the GUI interface for non-blocking operations during backup and restore processes
+- **PyInstaller**: Used by build scripts to create standalone executables for distribution
+
+### Cloud Storage Dependencies (Optional)
+- **Google API Libraries**: For Google Drive integration with OAuth2 authentication
+  - `google-api-python-client`: Google Drive API access
+  - `google-auth-oauthlib`: OAuth2 authentication flow
+  - `google-auth`: Core authentication library
+- **Native Cloud Access**: iCloud Drive integration uses local filesystem access (macOS only)
 
 ### Target Application
 - **OrcaSlicer**: The application is specifically designed to work with OrcaSlicer's configuration structure and file organization across different platforms
 
-### No External Package Dependencies
-The application is designed to run with only Python's standard library, making it easily portable without requiring additional package installations or dependency management.
+### Dependency Management Strategy
+The application uses a hybrid approach to dependency management:
+- **Core Features**: Built entirely with Python standard library for maximum portability
+- **Cloud Features**: Optional external dependencies with graceful degradation when unavailable
+- **Build Dependencies**: Automatically managed by enhanced build scripts with multiple installation strategies

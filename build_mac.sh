@@ -11,12 +11,91 @@ if [[ "$OSTYPE" != "darwin"* ]]; then
     exit 1
 fi
 
-# Check Python 3 installation
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Error: Python 3 is not installed"
-    echo "   Please install Python 3 from https://www.python.org/downloads/"
-    exit 1
-fi
+# Enhanced Python installation checking and resolution
+check_and_install_python() {
+    if ! command -v python3 &> /dev/null; then
+        echo "❌ Python 3 not found. Let's install it..."
+        echo ""
+        echo "Choose installation method:"
+        echo "1) Install via Homebrew (recommended)"
+        echo "2) Download from python.org"
+        echo "3) Exit and install manually"
+        echo ""
+        
+        while true; do
+            read -p "Select option [1-3]: " choice
+            case $choice in
+                1)
+                    install_python_homebrew
+                    break
+                    ;;
+                2)
+                    install_python_manual
+                    break
+                    ;;
+                3)
+                    echo "Please install Python 3.7+ and run this script again"
+                    exit 1
+                    ;;
+                *)
+                    echo "Please select 1, 2, or 3"
+                    ;;
+            esac
+        done
+    fi
+}
+
+install_python_homebrew() {
+    echo "🍺 Installing Python via Homebrew..."
+    
+    # Check if Homebrew is installed
+    if ! command -v brew &> /dev/null; then
+        echo "Homebrew not found. Installing Homebrew first..."
+        echo "This may require your password for system permissions."
+        
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        
+        # Add Homebrew to PATH for current session
+        if [[ -f "/opt/homebrew/bin/brew" ]]; then
+            # Apple Silicon Mac
+            export PATH="/opt/homebrew/bin:$PATH"
+        elif [[ -f "/usr/local/bin/brew" ]]; then
+            # Intel Mac
+            export PATH="/usr/local/bin:$PATH"
+        fi
+    fi
+    
+    echo "Installing Python 3..."
+    if brew install python3; then
+        echo "✅ Python 3 installed successfully via Homebrew"
+        # Update PATH for current session
+        export PATH="$(brew --prefix)/bin:$PATH"
+    else
+        echo "❌ Failed to install Python via Homebrew"
+        install_python_manual
+    fi
+}
+
+install_python_manual() {
+    echo "📥 Manual Python Installation Required"
+    echo ""
+    echo "Please follow these steps:"
+    echo "1. Go to https://www.python.org/downloads/macos/"
+    echo "2. Download Python 3.11 or later"
+    echo "3. Run the installer"
+    echo "4. Make sure to check 'Add Python to PATH'"
+    echo "5. Run this script again after installation"
+    echo ""
+    read -p "Press Enter after installing Python, or Ctrl+C to exit..."
+    
+    # Check if Python is now available
+    if ! command -v python3 &> /dev/null; then
+        echo "❌ Python still not found. Please check your installation."
+        exit 1
+    fi
+}
+
+check_and_install_python
 
 # Check Python version (minimum 3.7)
 PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
@@ -31,14 +110,32 @@ fi
 
 echo "✅ Python $PYTHON_VERSION found"
 
-# Check pip
-if ! python3 -m pip --version &> /dev/null; then
-    echo "❌ Error: pip is not available"
-    echo "   Please install pip for Python 3"
-    exit 1
-fi
+# Enhanced pip checking and installation
+check_and_setup_pip() {
+    if ! python3 -m pip --version &> /dev/null; then
+        echo "❌ pip not available. Installing pip..."
+        
+        # Download get-pip.py
+        curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+        
+        if python3 get-pip.py --user; then
+            echo "✅ pip installed successfully"
+            rm -f get-pip.py
+            
+            # Update PATH to include user bin directory
+            USER_BASE=$(python3 -m site --user-base)
+            export PATH="$USER_BASE/bin:$PATH"
+        else
+            echo "❌ Failed to install pip"
+            rm -f get-pip.py
+            exit 1
+        fi
+    fi
+    
+    echo "✅ pip available"
+}
 
-echo "✅ pip available"
+check_and_setup_pip
 
 # Check required source files
 REQUIRED_FILES=("main.py" "gui.py" "orca_backup.py" "utils.py")
@@ -125,14 +222,29 @@ else
                 ;;
             3)
                 echo "Creating virtual environment..."
-                if python3 -m venv build_env && source build_env/bin/activate && pip install pyinstaller; then
-                    echo "✅ PyInstaller installed in virtual environment"
-                    echo "ℹ️  Using virtual environment for build"
-                    PYINSTALLER_INSTALLED=true
-                    USING_VENV=true
-                    break
+                if python3 -m venv build_env; then
+                    echo "Virtual environment created. Activating..."
+                    source build_env/bin/activate
+                    
+                    echo "Upgrading pip in virtual environment..."
+                    pip install --upgrade pip
+                    
+                    echo "Installing PyInstaller and cloud dependencies..."
+                    if pip install pyinstaller google-api-python-client google-auth-oauthlib; then
+                        echo "✅ PyInstaller and cloud dependencies installed in virtual environment"
+                        echo "ℹ️  Using virtual environment for build"
+                        PYINSTALLER_INSTALLED=true
+                        USING_VENV=true
+                        break
+                    else
+                        echo "❌ Failed to install dependencies in virtual environment"
+                        deactivate 2>/dev/null || true
+                        rm -rf build_env
+                        echo "Try another option."
+                        echo ""
+                    fi
                 else
-                    echo "❌ Virtual environment setup failed. Try another option."
+                    echo "❌ Virtual environment creation failed. Try another option."
                     echo ""
                 fi
                 ;;
@@ -141,8 +253,8 @@ else
                 read -p "Are you sure you want to continue? [y/N]: " confirm
                 if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
                     echo "Installing PyInstaller with system override..."
-                    if python3 -m pip install --break-system-packages --upgrade pyinstaller; then
-                        echo "✅ PyInstaller installed successfully (system override)"
+                    if python3 -m pip install --break-system-packages --upgrade pyinstaller google-api-python-client google-auth-oauthlib; then
+                        echo "✅ PyInstaller and cloud dependencies installed successfully (system override)"
                         PYINSTALLER_INSTALLED=true
                         break
                     else
