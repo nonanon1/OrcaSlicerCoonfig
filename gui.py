@@ -1,46 +1,137 @@
 """
-Graphical User Interface for OrcaSlicer Configuration Backup Tool
+Simple GUI for OrcaSlicer Configuration Backup Tool
 """
 
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, scrolledtext
 import threading
+import os
+import tempfile
+import zipfile
 from pathlib import Path
+from datetime import datetime
 from orca_backup import OrcaBackup
 from utils import format_file_size
 
-class GUIInterface:
-    """GUI interface using tkinter"""
+class ConfigDiff:
+    """Compare two OrcaSlicer configurations"""
+    
+    def __init__(self, backup_tool):
+        self.backup_tool = backup_tool
+    
+    def compare_with_backup(self, backup_file):
+        """
+        Compare current configuration with a backup file
+        
+        Args:
+            backup_file (str): Path to backup zip file
+            
+        Returns:
+            dict: Comparison results
+        """
+        current_info = self.backup_tool.get_config_info()
+        
+        if not current_info['config_found']:
+            return {'error': 'No current configuration found'}
+        
+        # Extract backup to temp directory for comparison
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                
+                with zipfile.ZipFile(backup_file, 'r') as zipf:
+                    zipf.extractall(temp_path)
+                
+                config_backup = temp_path / "config"
+                if not config_backup.exists():
+                    return {'error': 'Invalid backup file'}
+                
+                current_config = Path(current_info['config_path'])
+                
+                # Compare directory structures
+                comparison = {
+                    'current_files': set(),
+                    'backup_files': set(),
+                    'common_files': set(),
+                    'different_files': [],
+                    'only_in_current': set(),
+                    'only_in_backup': set()
+                }
+                
+                # Get all files in current config
+                if current_config.exists():
+                    for file_path in current_config.rglob('*'):
+                        if file_path.is_file():
+                            rel_path = file_path.relative_to(current_config)
+                            comparison['current_files'].add(str(rel_path))
+                
+                # Get all files in backup config
+                for file_path in config_backup.rglob('*'):
+                    if file_path.is_file():
+                        rel_path = file_path.relative_to(config_backup)
+                        comparison['backup_files'].add(str(rel_path))
+                
+                # Find common files and differences
+                comparison['common_files'] = comparison['current_files'] & comparison['backup_files']
+                comparison['only_in_current'] = comparison['current_files'] - comparison['backup_files']
+                comparison['only_in_backup'] = comparison['backup_files'] - comparison['current_files']
+                
+                # Check for file content differences
+                for rel_path in comparison['common_files']:
+                    current_file = current_config / rel_path
+                    backup_file = config_backup / rel_path
+                    
+                    try:
+                        current_size = current_file.stat().st_size
+                        backup_size = backup_file.stat().st_size
+                        
+                        if current_size != backup_size:
+                            comparison['different_files'].append({
+                                'file': rel_path,
+                                'current_size': current_size,
+                                'backup_size': backup_size,
+                                'reason': 'Different file sizes'
+                            })
+                        else:
+                            # For small files, compare content
+                            if current_size < 1024 * 1024:  # Less than 1MB
+                                try:
+                                    with open(current_file, 'rb') as f1, open(backup_file, 'rb') as f2:
+                                        if f1.read() != f2.read():
+                                            comparison['different_files'].append({
+                                                'file': rel_path,
+                                                'current_size': current_size,
+                                                'backup_size': backup_size,
+                                                'reason': 'Different content'
+                                            })
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+                
+                return comparison
+                
+        except Exception as e:
+            return {'error': f'Failed to compare configurations: {e}'}
+
+class OrcaBackupGUI:
+    """Simple GUI for OrcaSlicer backup operations"""
     
     def __init__(self):
         self.backup_tool = OrcaBackup()
-        self.root = None
-        self.status_var = None
-        self.progress_var = None
-        
-    def run(self):
-        """Initialize and run the GUI"""
+        self.diff_tool = ConfigDiff(self.backup_tool)
         self.root = tk.Tk()
-        self.root.title("OrcaSlicer Configuration Backup Tool")
-        self.root.geometry("600x500")
-        self.root.resizable(True, True)
-        
-        # Set window icon (if available)
-        try:
-            self.root.iconbitmap('icon.ico')
-        except:
-            pass
-        
+        self.setup_window()
         self.create_widgets()
         self.update_status()
-        
-        # Center window
-        self.center_window()
-        
-        self.root.mainloop()
     
-    def center_window(self):
-        """Center the window on screen"""
+    def setup_window(self):
+        """Setup main window properties"""
+        self.root.title("OrcaSlicer Configuration Manager")
+        self.root.geometry("700x600")
+        self.root.resizable(True, True)
+        
+        # Center window on screen
         self.root.update_idletasks()
         width = self.root.winfo_width()
         height = self.root.winfo_height()
@@ -49,264 +140,313 @@ class GUIInterface:
         self.root.geometry(f'{width}x{height}+{x}+{y}')
     
     def create_widgets(self):
-        """Create and layout GUI widgets"""
-        # Main frame
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Configure grid weights
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(1, weight=1)
+        """Create all GUI widgets"""
+        # Main container
+        main_frame = ttk.Frame(self.root, padding="15")
+        main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Title
-        title_label = ttk.Label(main_frame, text="OrcaSlicer Configuration Backup Tool", 
-                               font=('Arial', 16, 'bold'))
-        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
+        title_label = ttk.Label(main_frame, text="OrcaSlicer Configuration Manager", 
+                               font=('Arial', 18, 'bold'))
+        title_label.pack(pady=(0, 20))
         
         # Status section
-        status_frame = ttk.LabelFrame(main_frame, text="Current Status", padding="10")
-        status_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
-        status_frame.columnconfigure(1, weight=1)
+        status_frame = ttk.LabelFrame(main_frame, text="Configuration Status", padding="10")
+        status_frame.pack(fill=tk.X, pady=(0, 15))
         
-        self.status_var = tk.StringVar()
-        status_text = tk.Text(status_frame, height=6, width=70, wrap=tk.WORD)
-        status_text.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E))
+        self.status_text = scrolledtext.ScrolledText(status_frame, height=5, width=80)
+        self.status_text.pack(fill=tk.X)
         
-        # Scrollbar for status text
-        status_scroll = ttk.Scrollbar(status_frame, orient="vertical", command=status_text.yview)
-        status_scroll.grid(row=0, column=2, sticky=(tk.N, tk.S))
-        status_text.configure(yscrollcommand=status_scroll.set)
+        # Main action buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(0, 15))
         
-        self.status_text = status_text
+        # Save Configuration button
+        save_btn = ttk.Button(button_frame, text="💾 Save Configuration", 
+                             command=self.save_configuration, style='Accent.TButton')
+        save_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Refresh button
-        refresh_btn = ttk.Button(status_frame, text="Refresh", command=self.update_status)
-        refresh_btn.grid(row=1, column=0, pady=(10, 0), sticky=tk.W)
+        # Load Configuration button  
+        load_btn = ttk.Button(button_frame, text="📂 Load Configuration", 
+                             command=self.load_configuration, style='Accent.TButton')
+        load_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        # Export section
-        export_frame = ttk.LabelFrame(main_frame, text="Export Configuration", padding="10")
-        export_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
-        export_frame.columnconfigure(1, weight=1)
-        
-        ttk.Label(export_frame, text="Export current configuration to:").grid(row=0, column=0, sticky=tk.W)
-        
-        self.export_path_var = tk.StringVar()
-        export_entry = ttk.Entry(export_frame, textvariable=self.export_path_var, width=50)
-        export_entry.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
-        
-        export_browse_btn = ttk.Button(export_frame, text="Browse...", command=self.browse_export_file)
-        export_browse_btn.grid(row=1, column=2, padx=(5, 0), pady=(5, 0))
-        
-        export_btn = ttk.Button(export_frame, text="Export Configuration", 
-                               command=self.export_config_threaded, style='Accent.TButton')
-        export_btn.grid(row=2, column=0, pady=(10, 0), sticky=tk.W)
-        
-        # Import section
-        import_frame = ttk.LabelFrame(main_frame, text="Import Configuration", padding="10")
-        import_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
-        import_frame.columnconfigure(1, weight=1)
-        
-        ttk.Label(import_frame, text="Import configuration from:").grid(row=0, column=0, sticky=tk.W)
-        
-        self.import_path_var = tk.StringVar()
-        import_entry = ttk.Entry(import_frame, textvariable=self.import_path_var, width=50)
-        import_entry.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(5, 0))
-        
-        import_browse_btn = ttk.Button(import_frame, text="Browse...", command=self.browse_import_file)
-        import_browse_btn.grid(row=1, column=2, padx=(5, 0), pady=(5, 0))
-        
-        # Backup checkbox
-        self.create_backup_var = tk.BooleanVar(value=True)
-        backup_check = ttk.Checkbutton(import_frame, text="Create backup of current configuration before import",
-                                      variable=self.create_backup_var)
-        backup_check.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(10, 0))
-        
-        import_btn = ttk.Button(import_frame, text="Import Configuration", 
-                               command=self.import_config_threaded, style='Accent.TButton')
-        import_btn.grid(row=3, column=0, pady=(10, 0), sticky=tk.W)
+        # Compare button
+        compare_btn = ttk.Button(button_frame, text="🔍 Compare with Backup", 
+                                command=self.compare_configurations)
+        compare_btn.pack(side=tk.LEFT)
         
         # Progress section
-        progress_frame = ttk.Frame(main_frame)
-        progress_frame.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(10, 0))
-        progress_frame.columnconfigure(0, weight=1)
+        progress_frame = ttk.LabelFrame(main_frame, text="Progress", padding="10")
+        progress_frame.pack(fill=tk.X, pady=(0, 15))
         
         self.progress_var = tk.StringVar(value="Ready")
         progress_label = ttk.Label(progress_frame, textvariable=self.progress_var)
-        progress_label.grid(row=0, column=0, sticky=tk.W)
+        progress_label.pack(anchor=tk.W)
         
         self.progress_bar = ttk.Progressbar(progress_frame, mode='indeterminate')
-        self.progress_bar.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        self.progress_bar.pack(fill=tk.X, pady=(5, 0))
         
-        # Set default export filename
-        from datetime import datetime
-        default_name = f"orca_config_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
-        self.export_path_var.set(default_name)
+        # Results/Diff section
+        results_frame = ttk.LabelFrame(main_frame, text="Comparison Results", padding="10")
+        results_frame.pack(fill=tk.BOTH, expand=True)
+        
+        self.results_text = scrolledtext.ScrolledText(results_frame, height=12, width=80)
+        self.results_text.pack(fill=tk.BOTH, expand=True)
     
     def update_status(self):
-        """Update the status display"""
+        """Update configuration status display"""
         try:
             info = self.backup_tool.get_config_info()
             
-            status_text = "OrcaSlicer Configuration Status\n"
-            status_text += "=" * 40 + "\n\n"
+            status = "OrcaSlicer Configuration Status\n"
+            status += "=" * 50 + "\n"
+            status += f"Installation found: {'✅ Yes' if info['installation_found'] else '❌ No'}\n"
             
-            status_text += f"Installation found: {'Yes' if info['installation_found'] else 'No'}\n"
             if info['installation_path']:
-                status_text += f"Installation path: {info['installation_path']}\n"
+                status += f"Installation path: {info['installation_path']}\n"
             
-            status_text += f"Configuration found: {'Yes' if info['config_found'] else 'No'}\n"
+            status += f"Configuration found: {'✅ Yes' if info['config_found'] else '❌ No'}\n"
+            
             if info['config_path']:
-                status_text += f"Configuration path: {info['config_path']}\n"
+                status += f"Configuration path: {info['config_path']}\n"
                 if info['config_found']:
-                    status_text += f"Configuration size: {format_file_size(info['config_size'])}\n"
-                    status_text += f"Number of files: {info['file_count']}\n"
-            
-            if 'error' in info:
-                status_text += f"\nError: {info['error']}\n"
+                    status += f"Configuration size: {format_file_size(info['config_size'])}\n"
+                    status += f"Number of files: {info['file_count']}\n"
             
             if not info['config_found']:
-                status_text += "\nNote: OrcaSlicer configuration not found.\n"
-                status_text += "Please ensure OrcaSlicer is installed and has been run at least once.\n"
+                status += "\n⚠️  OrcaSlicer configuration not found.\n"
+                status += "Please ensure OrcaSlicer is installed and run at least once.\n"
             
             self.status_text.delete(1.0, tk.END)
-            self.status_text.insert(tk.END, status_text)
+            self.status_text.insert(tk.END, status)
             
         except Exception as e:
             self.status_text.delete(1.0, tk.END)
             self.status_text.insert(tk.END, f"Error updating status: {e}")
     
-    def browse_export_file(self):
-        """Browse for export file location"""
+    def save_configuration(self):
+        """Save current configuration to a zip file"""
+        # Get save location
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_name = f"orca_config_backup_{timestamp}.zip"
+        
         filename = filedialog.asksaveasfilename(
-            title="Save backup as...",
+            title="Save Configuration As...",
             defaultextension=".zip",
             filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
         )
-        if filename:
-            self.export_path_var.set(filename)
-    
-    def browse_import_file(self):
-        """Browse for import file location"""
-        filename = filedialog.askopenfilename(
-            title="Select backup file to import",
-            filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
-        )
-        if filename:
-            self.import_path_var.set(filename)
-    
-    def export_config_threaded(self):
-        """Export configuration in a separate thread"""
-        export_path = self.export_path_var.get().strip()
-        if not export_path:
-            messagebox.showerror("Error", "Please specify an export filename")
+        
+        if not filename:
             return
         
-        # Check if file exists
-        if Path(export_path).exists():
-            if not messagebox.askyesno("File Exists", 
-                                     f"File '{export_path}' already exists.\nDo you want to overwrite it?"):
-                return
-        
         # Start progress
-        self.progress_var.set("Exporting configuration...")
+        self.progress_var.set("Saving configuration...")
         self.progress_bar.start()
         
-        def export_thread():
+        def save_thread():
             try:
-                success = self.backup_tool.export_configuration(export_path)
+                success = self.backup_tool.export_configuration(filename)
                 
                 # Update UI in main thread
-                self.root.after(0, lambda: self.export_completed(success, export_path, None))
+                self.root.after(0, lambda: self.save_completed(success, filename, None))
                 
             except Exception as e:
-                self.root.after(0, lambda: self.export_completed(False, export_path, str(e)))
+                self.root.after(0, lambda: self.save_completed(False, filename, str(e)))
         
-        threading.Thread(target=export_thread, daemon=True).start()
+        threading.Thread(target=save_thread, daemon=True).start()
     
-    def export_completed(self, success, filename, error):
-        """Handle export completion"""
+    def save_completed(self, success, filename, error):
+        """Handle save completion"""
         self.progress_bar.stop()
         
         if success:
             file_size = format_file_size(Path(filename).stat().st_size)
-            self.progress_var.set("Export completed successfully")
-            messagebox.showinfo("Export Successful", 
-                              f"Configuration exported successfully!\n\nFile: {filename}\nSize: {file_size}")
+            self.progress_var.set("Configuration saved successfully")
+            
+            result = f"✅ Configuration saved successfully!\n\n"
+            result += f"📁 File: {filename}\n"
+            result += f"📏 Size: {file_size}\n"
+            result += f"🕒 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            
+            self.results_text.delete(1.0, tk.END)
+            self.results_text.insert(tk.END, result)
+            
+            messagebox.showinfo("Success", "Configuration saved successfully!")
         else:
-            self.progress_var.set("Export failed")
-            error_msg = f"Export failed"
+            self.progress_var.set("Save failed")
+            error_msg = f"❌ Failed to save configuration"
             if error:
-                error_msg += f": {error}"
-            messagebox.showerror("Export Failed", error_msg)
+                error_msg += f":\n{error}"
+            
+            self.results_text.delete(1.0, tk.END)
+            self.results_text.insert(tk.END, error_msg)
+            
+            messagebox.showerror("Error", error_msg)
     
-    def import_config_threaded(self):
-        """Import configuration in a separate thread"""
-        import_path = self.import_path_var.get().strip()
-        if not import_path:
-            messagebox.showerror("Error", "Please specify an import filename")
+    def load_configuration(self):
+        """Load configuration from a zip file"""
+        filename = filedialog.askopenfilename(
+            title="Select Configuration Backup",
+            filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
+        )
+        
+        if not filename:
             return
         
-        if not Path(import_path).exists():
-            messagebox.showerror("Error", f"File '{import_path}' not found")
+        # Show confirmation dialog
+        if not messagebox.askyesno("Confirm Load", 
+                                  f"This will replace your current OrcaSlicer configuration with:\n{filename}\n\nA backup of your current configuration will be created automatically.\n\nDo you want to continue?"):
             return
-        
-        # Show backup info
-        backup_info = self.backup_tool.validator.get_backup_info(import_path)
-        if backup_info and 'error' not in backup_info:
-            info_text = "Backup Information:\n\n"
-            for key, value in backup_info.items():
-                info_text += f"{key}: {value}\n"
-            info_text += f"\nThis will replace your current OrcaSlicer configuration.\n"
-            info_text += f"Do you want to continue?"
-        else:
-            info_text = f"Import configuration from:\n{import_path}\n\n"
-            info_text += f"This will replace your current OrcaSlicer configuration.\n"
-            info_text += f"Do you want to continue?"
-        
-        if not messagebox.askyesno("Confirm Import", info_text):
-            return
-        
-        create_backup = self.create_backup_var.get()
         
         # Start progress
-        self.progress_var.set("Importing configuration...")
+        self.progress_var.set("Loading configuration...")
         self.progress_bar.start()
         
-        def import_thread():
+        def load_thread():
             try:
-                success = self.backup_tool.import_configuration(import_path, create_backup)
+                success = self.backup_tool.import_configuration(filename, create_backup=True)
                 
                 # Update UI in main thread
-                self.root.after(0, lambda: self.import_completed(success, import_path, None))
+                self.root.after(0, lambda: self.load_completed(success, filename, None))
                 
             except Exception as e:
-                self.root.after(0, lambda: self.import_completed(False, import_path, str(e)))
+                self.root.after(0, lambda: self.load_completed(False, filename, str(e)))
         
-        threading.Thread(target=import_thread, daemon=True).start()
+        threading.Thread(target=load_thread, daemon=True).start()
     
-    def import_completed(self, success, filename, error):
-        """Handle import completion"""
+    def load_completed(self, success, filename, error):
+        """Handle load completion"""
         self.progress_bar.stop()
         
         if success:
-            self.progress_var.set("Import completed successfully")
-            messagebox.showinfo("Import Successful", 
-                              f"Configuration imported successfully!\n\n"
-                              f"Please restart OrcaSlicer to see the changes.")
-            # Update status display
+            self.progress_var.set("Configuration loaded successfully")
+            
+            result = f"✅ Configuration loaded successfully!\n\n"
+            result += f"📁 From: {filename}\n"
+            result += f"🕒 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            result += "⚠️  Please restart OrcaSlicer to see the changes.\n"
+            
+            self.results_text.delete(1.0, tk.END)
+            self.results_text.insert(tk.END, result)
+            
+            # Update status
             self.update_status()
+            
+            messagebox.showinfo("Success", "Configuration loaded successfully!\n\nPlease restart OrcaSlicer to see the changes.")
         else:
-            self.progress_var.set("Import failed")
-            error_msg = f"Import failed"
+            self.progress_var.set("Load failed")
+            error_msg = f"❌ Failed to load configuration"
             if error:
-                error_msg += f": {error}"
-            messagebox.showerror("Import Failed", error_msg)
+                error_msg += f":\n{error}"
+            
+            self.results_text.delete(1.0, tk.END)
+            self.results_text.insert(tk.END, error_msg)
+            
+            messagebox.showerror("Error", error_msg)
+    
+    def compare_configurations(self):
+        """Compare current configuration with a backup"""
+        filename = filedialog.askopenfilename(
+            title="Select Backup to Compare With",
+            filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
+        )
+        
+        if not filename:
+            return
+        
+        # Start progress
+        self.progress_var.set("Comparing configurations...")
+        self.progress_bar.start()
+        
+        def compare_thread():
+            try:
+                comparison = self.diff_tool.compare_with_backup(filename)
+                
+                # Update UI in main thread
+                self.root.after(0, lambda: self.compare_completed(comparison, filename))
+                
+            except Exception as e:
+                self.root.after(0, lambda: self.compare_failed(str(e)))
+        
+        threading.Thread(target=compare_thread, daemon=True).start()
+    
+    def compare_completed(self, comparison, filename):
+        """Handle comparison completion"""
+        self.progress_bar.stop()
+        self.progress_var.set("Comparison completed")
+        
+        if 'error' in comparison:
+            self.results_text.delete(1.0, tk.END)
+            self.results_text.insert(tk.END, f"❌ Comparison failed: {comparison['error']}")
+            return
+        
+        # Build detailed comparison report
+        report = f"🔍 Configuration Comparison Results\n"
+        report += "=" * 60 + "\n"
+        report += f"📁 Backup file: {filename}\n"
+        report += f"🕒 Comparison date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        
+        # Summary
+        total_current = len(comparison['current_files'])
+        total_backup = len(comparison['backup_files'])
+        total_common = len(comparison['common_files'])
+        total_different = len(comparison['different_files'])
+        only_current = len(comparison['only_in_current'])
+        only_backup = len(comparison['only_in_backup'])
+        
+        report += "📊 Summary:\n"
+        report += f"   Current configuration files: {total_current}\n"
+        report += f"   Backup configuration files: {total_backup}\n"
+        report += f"   Common files: {total_common}\n"
+        report += f"   Files with differences: {total_different}\n"
+        report += f"   Only in current: {only_current}\n"
+        report += f"   Only in backup: {only_backup}\n\n"
+        
+        if total_different == 0 and only_current == 0 and only_backup == 0:
+            report += "✅ Configurations are identical!\n"
+        else:
+            report += "⚠️  Configurations have differences:\n\n"
+            
+            if comparison['different_files']:
+                report += "📝 Files with differences:\n"
+                for diff in comparison['different_files']:
+                    report += f"   • {diff['file']} - {diff['reason']}\n"
+                    report += f"     Current: {format_file_size(diff['current_size'])}, "
+                    report += f"Backup: {format_file_size(diff['backup_size'])}\n"
+                report += "\n"
+            
+            if comparison['only_in_current']:
+                report += "➕ Files only in current configuration:\n"
+                for file in sorted(comparison['only_in_current']):
+                    report += f"   • {file}\n"
+                report += "\n"
+            
+            if comparison['only_in_backup']:
+                report += "➖ Files only in backup:\n"
+                for file in sorted(comparison['only_in_backup']):
+                    report += f"   • {file}\n"
+                report += "\n"
+        
+        self.results_text.delete(1.0, tk.END)
+        self.results_text.insert(tk.END, report)
+    
+    def compare_failed(self, error):
+        """Handle comparison failure"""
+        self.progress_bar.stop()
+        self.progress_var.set("Comparison failed")
+        
+        self.results_text.delete(1.0, tk.END)
+        self.results_text.insert(tk.END, f"❌ Comparison failed: {error}")
+    
+    def run(self):
+        """Start the GUI application"""
+        self.root.mainloop()
 
 def main():
-    """Main entry point for GUI"""
-    gui = GUIInterface()
-    gui.run()
+    """Main entry point for the GUI"""
+    app = OrcaBackupGUI()
+    app.run()
 
 if __name__ == "__main__":
     main()
