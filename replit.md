@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a Python-based configuration backup and restore tool for OrcaSlicer, a 3D printing slicer application. The tool provides both command-line and graphical user interfaces to help users backup, restore, and manage their OrcaSlicer configuration files across different operating systems (Windows, macOS, and Linux). The application automatically detects OrcaSlicer installations and configuration directories, allowing users to easily create portable backups of their printer profiles, settings, and preferences.
+This is a Python-based GUI application for managing OrcaSlicer configurations. The tool provides a simple graphical interface to backup, restore, and compare OrcaSlicer configuration files across different operating systems (Windows and macOS). The application automatically detects OrcaSlicer installations and configuration directories, allowing users to easily create portable backups of their printer profiles, settings, and preferences, plus compare current configurations with saved backups to see exactly what has changed.
 
 ## User Preferences
 
@@ -22,10 +22,10 @@ The application follows a modular architecture with clear separation of concerns
 The system is designed to work across Windows, macOS, and Linux platforms by abstracting platform-specific path detection logic in the `OrcaSlicerPaths` utility class. This approach allows the core backup functionality to remain platform-agnostic while handling OS-specific configuration directory locations.
 
 ### Interface Architecture
-The application implements a dual-interface pattern:
-- **CLI Interface**: Interactive command-line mode with menu-driven navigation for users who prefer terminal-based tools
-- **GUI Interface**: Tkinter-based graphical interface for users who prefer visual interaction
-Both interfaces share the same core backup functionality through the `OrcaBackup` class.
+The application implements a simple GUI-only interface:
+- **GUI Interface**: Clean Tkinter-based graphical interface with three main functions: Save Configuration, Load Configuration, and Compare with Backup
+- **Progress Feedback**: Real-time progress bar and status updates during operations
+- **Configuration Comparison**: Detailed diff tool that shows exactly what files are different, added, or removed between current and saved configurations
 
 ### File Management Strategy
 The backup system uses ZIP file format for configuration archives, providing compression and portability. The architecture includes file validation mechanisms to ensure backup integrity and proper error handling for various failure scenarios like missing installations or corrupted backups.
