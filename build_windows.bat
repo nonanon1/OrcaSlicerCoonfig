@@ -234,16 +234,195 @@ for %%f in (%REQUIRED_FILES%) do (
 
 echo ^✅ All required source files found
 
-:: Check Python dependencies
+:: Enhanced Python dependencies checking with automatic resolution
+call :check_and_resolve_python_modules
+goto :continue_after_modules
+
+:check_and_resolve_python_modules
 echo ^🔍 Checking Python dependencies...
-python -c "import sys; missing=[]; [missing.append(m) for m in ['tkinter','pathlib','zipfile'] if __import__('importlib').util.find_spec(m) is None]; sys.exit(1) if missing else print('✅ All Python dependencies satisfied')" 2>nul
-if errorlevel 1 (
-    echo ^❌ Error: Missing Python modules detected
-    echo    Common issue: tkinter not included with Python installation
-    echo    Please reinstall Python with tkinter support
+
+:: Check for missing modules
+python -c "import sys; missing=[]; modules=['tkinter','pathlib','zipfile']; [missing.append(m) for m in modules if __import__('importlib').util.find_spec(m) is None]; print(','.join(missing)) if missing else print('OK')" > temp_modules.txt 2>nul
+set /p MISSING_MODULES=<temp_modules.txt
+del temp_modules.txt
+
+if "%MISSING_MODULES%"=="OK" (
+    echo ^✅ All Python dependencies satisfied
+    goto :eof
+)
+
+echo ^❌ Missing Python modules detected: %MISSING_MODULES%
+
+:: Check if tkinter is missing (most common issue)
+echo %MISSING_MODULES% | findstr "tkinter" >nul
+if not errorlevel 1 (
+    echo.
+    echo ^🔧 tkinter module missing - this is a common Windows issue
+    call :resolve_tkinter_issue
+    goto :eof
+) else (
+    echo ^❌ Error: Critical Python modules missing: %MISSING_MODULES%
+    echo    This usually indicates a corrupted Python installation
+    echo    Please reinstall Python from https://www.python.org/downloads/
     pause
     exit /b 1
 )
+
+:resolve_tkinter_issue
+echo.
+echo tkinter resolution options:
+echo 1^) Try installing tkinter via pip
+echo 2^) Reinstall Python with tkinter support
+echo 3^) Create virtual environment with tkinter
+echo 4^) Download Python from python.org ^(recommended^)
+echo 5^) Exit and install manually
+echo.
+
+:tkinter_choice_loop
+set /p choice="Select option [1-5]: "
+if "%choice%"=="1" goto :install_tkinter_pip
+if "%choice%"=="2" goto :reinstall_python_tkinter
+if "%choice%"=="3" goto :create_venv_tkinter
+if "%choice%"=="4" goto :download_python_tkinter
+if "%choice%"=="5" exit /b 1
+echo Please select 1, 2, 3, 4, or 5
+goto :tkinter_choice_loop
+
+:install_tkinter_pip
+echo ^🔧 Attempting to install tkinter via pip...
+python -m pip install tk
+if errorlevel 1 (
+    echo ^❌ pip install failed - tkinter usually comes with Python
+    echo    This suggests your Python installation is incomplete
+    goto :tkinter_choice_loop
+)
+
+:: Test if tkinter works now
+python -c "import tkinter; print('tkinter test successful')" >nul 2>&1
+if errorlevel 1 (
+    echo ^❌ tkinter still not working after pip install
+    goto :tkinter_choice_loop
+) else (
+    echo ^✅ tkinter installed and working via pip
+    goto :eof
+)
+
+:reinstall_python_tkinter
+echo ^🔄 Reinstalling current Python with tkinter support...
+echo.
+echo This will reinstall your current Python version with all optional components
+echo including tkinter. Your current Python installation will be updated.
+echo.
+set /p confirm="Continue with Python reinstall? (y/n): "
+if /i not "%confirm%"=="y" goto :tkinter_choice_loop
+
+:: Get current Python version
+for /f "tokens=2" %%v in ('python --version 2^>^&1') do set CURRENT_PYTHON=%%v
+echo Current Python version: %CURRENT_PYTHON%
+
+:: Extract major.minor version for download URL
+for /f "tokens=1,2 delims=." %%a in ("%CURRENT_PYTHON%") do (
+    set PYTHON_MAJOR=%%a
+    set PYTHON_MINOR=%%b
+)
+
+echo Downloading Python %PYTHON_MAJOR%.%PYTHON_MINOR% installer with tkinter...
+set "PYTHON_URL=https://www.python.org/ftp/python/%CURRENT_PYTHON%/python-%CURRENT_PYTHON%-amd64.exe"
+
+powershell -Command "& {Invoke-WebRequest -Uri '%PYTHON_URL%' -OutFile 'python_reinstaller.exe'}"
+if not exist "python_reinstaller.exe" (
+    echo ^❌ Failed to download Python installer
+    echo    Trying latest Python 3.11 instead...
+    goto :download_python_tkinter
+)
+
+echo Installing Python with tkinter support...
+python_reinstaller.exe /passive InstallAllUsers=1 PrependPath=1 Include_tkinter=1 Include_test=0
+
+echo Cleaning up...
+del python_reinstaller.exe
+
+echo Refreshing PATH...
+call :refresh_path
+
+:: Test if tkinter works now
+python -c "import tkinter; print('tkinter test successful')" >nul 2>&1
+if errorlevel 1 (
+    echo ^❌ tkinter still not available after reinstall
+    echo    Try option 4 ^(Download from python.org^)
+    goto :tkinter_choice_loop
+) else (
+    echo ^✅ Python reinstalled successfully with tkinter support
+    goto :eof
+)
+
+:create_venv_tkinter
+echo ^🔧 Creating virtual environment with tkinter support...
+
+:: Check if we can create a venv with tkinter
+python -m venv test_tkinter_env
+if errorlevel 1 (
+    echo ^❌ Virtual environment creation failed
+    goto :tkinter_choice_loop
+)
+
+call test_tkinter_env\Scripts\activate.bat
+python -c "import tkinter; print('tkinter test successful')" >nul 2>&1
+if errorlevel 1 (
+    echo ^❌ tkinter not available even in virtual environment
+    echo    This indicates a system-wide Python issue
+    deactivate
+    rmdir /s /q test_tkinter_env
+    goto :tkinter_choice_loop
+) else (
+    echo ^✅ Virtual environment created with tkinter support
+    echo ^ℹ️  Build will use this virtual environment
+    deactivate
+    rename test_tkinter_env build_env
+    set USING_VENV=true
+    goto :eof
+)
+
+:download_python_tkinter
+echo ^📥 Downloading Python with guaranteed tkinter support...
+echo.
+echo This will download and install Python 3.11 from python.org
+echo which includes tkinter by default.
+echo.
+set /p confirm="Continue with Python 3.11 download? (y/n): "
+if /i not "%confirm%"=="y" goto :tkinter_choice_loop
+
+echo Downloading Python 3.11 installer...
+powershell -Command "& {Invoke-WebRequest -Uri 'https://www.python.org/ftp/python/3.11.8/python-3.11.8-amd64.exe' -OutFile 'python_tkinter_installer.exe'}"
+
+if not exist "python_tkinter_installer.exe" (
+    echo ^❌ Failed to download Python installer
+    echo    Please check your internet connection
+    goto :tkinter_choice_loop
+)
+
+echo Installing Python 3.11 with tkinter support...
+python_tkinter_installer.exe /passive InstallAllUsers=1 PrependPath=1 Include_tkinter=1 Include_test=0
+
+echo Cleaning up...
+del python_tkinter_installer.exe
+
+echo Refreshing PATH...
+call :refresh_path
+
+:: Test if tkinter works now
+python -c "import tkinter; print('tkinter test successful')" >nul 2>&1
+if errorlevel 1 (
+    echo ^❌ tkinter still not available
+    echo    Please try manual installation from https://www.python.org/downloads/
+    pause
+    exit /b 1
+) else (
+    echo ^✅ Python 3.11 installed successfully with tkinter support
+    goto :eof
+)
+
+:continue_after_modules
 
 :: Enhanced PyInstaller installation with permission handling
 call :install_pyinstaller_with_permissions
