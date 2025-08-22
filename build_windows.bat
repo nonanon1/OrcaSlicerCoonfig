@@ -81,16 +81,23 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: Install PyInstaller
-echo ^🔧 Installing PyInstaller...
-python -m pip install --upgrade pyinstaller
+:: Install PyInstaller and cloud dependencies
+echo ^🔧 Installing PyInstaller and cloud dependencies...
+python -m pip install --upgrade pyinstaller google-api-python-client google-auth-oauthlib
 if errorlevel 1 (
-    echo ^❌ Error: Failed to install PyInstaller
-    pause
-    exit /b 1
+    echo ^❌ Error: Failed to install PyInstaller and dependencies
+    echo    Note: Cloud storage features may not be available
+    echo    Trying PyInstaller only...
+    python -m pip install --upgrade pyinstaller
+    if errorlevel 1 (
+        echo ^❌ Error: Failed to install PyInstaller
+        pause
+        exit /b 1
+    )
+    echo ^✅ PyInstaller installed successfully ^(cloud features limited^)
+) else (
+    echo ^✅ PyInstaller and cloud dependencies installed successfully
 )
-
-echo ^✅ PyInstaller installed successfully
 
 :: Clean previous builds
 echo ^🧹 Cleaning previous builds...

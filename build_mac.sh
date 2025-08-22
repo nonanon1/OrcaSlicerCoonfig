@@ -79,8 +79,8 @@ else:
     print('✅ All Python dependencies satisfied')
 "
 
-# Install PyInstaller
-echo "🔧 Installing PyInstaller..."
+# Install PyInstaller and optional cloud dependencies
+echo "🔧 Installing PyInstaller and dependencies..."
 
 # Check if PyInstaller is already installed
 if command -v pyinstaller &> /dev/null; then
@@ -101,8 +101,8 @@ else
         case $choice in
             1)
                 echo "Installing PyInstaller with standard method..."
-                if python3 -m pip install --upgrade pyinstaller; then
-                    echo "✅ PyInstaller installed successfully"
+                if python3 -m pip install --upgrade pyinstaller google-api-python-client google-auth-oauthlib; then
+                    echo "✅ PyInstaller and cloud dependencies installed successfully"
                     PYINSTALLER_INSTALLED=true
                     break
                 else
@@ -112,8 +112,8 @@ else
                 ;;
             2)
                 echo "Installing PyInstaller to user directory..."
-                if python3 -m pip install --user --upgrade pyinstaller; then
-                    echo "✅ PyInstaller installed successfully (user install)"
+                if python3 -m pip install --user --upgrade pyinstaller google-api-python-client google-auth-oauthlib; then
+                    echo "✅ PyInstaller and cloud dependencies installed successfully (user install)"
                     # Update PATH to include user bin directory
                     export PATH="$HOME/.local/bin:$HOME/Library/Python/$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/bin:$PATH"
                     PYINSTALLER_INSTALLED=true

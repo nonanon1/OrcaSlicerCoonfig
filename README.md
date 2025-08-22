@@ -1,6 +1,25 @@
 # OrcaSlicer Configuration Manager
 
-A GUI application for backing up, restoring, and comparing OrcaSlicer configurations across different platforms.
+A comprehensive GUI application for managing OrcaSlicer configurations with local and cloud backup capabilities. Features include configuration backup/restore, comparison tools, and seamless synchronization across devices using Google Drive and iCloud.
+
+## Features
+
+### 🔧 Core Configuration Management
+- **Automatic Detection**: Finds OrcaSlicer installations and configurations across platforms
+- **Complete Backup**: Saves all settings, printer profiles, and preferences in portable ZIP files
+- **Easy Restore**: Restores configurations with progress tracking and validation
+- **Smart Comparison**: Detailed diff tool showing exactly what changed between configurations
+
+### ☁️ Cloud Storage Integration
+- **Google Drive Sync**: Upload/download backups with OAuth2 authentication
+- **iCloud Drive Support**: Native macOS iCloud integration for seamless device sync
+- **Cross-Device Access**: Access your configurations from any authenticated device
+- **Automatic Organization**: Creates dedicated cloud folders for backup management
+
+### 🖥️ Cross-Platform Support
+- **macOS**: Full native .app bundle with proper macOS integration
+- **Windows**: Standalone .exe with comprehensive validation
+- **Unified Experience**: Consistent interface and functionality across platforms
 
 ## Building the Application
 
@@ -13,7 +32,7 @@ This application can be built for both macOS and Windows as standalone executabl
 - Python 3.7+ installed
 - Run on the target Mac system (Intel or Apple Silicon)
 
-**Build Steps:**
+**Enhanced Build Process:**
 
 1. **Download/Clone the project files to your Mac**
 
@@ -22,29 +41,30 @@ This application can be built for both macOS and Windows as standalone executabl
    cd path/to/OrcaSlicer-Config-Manager
    ```
 
-3. **Make the build script executable and run it:**
+3. **Run the enhanced build script:**
    ```bash
    chmod +x build_mac.sh
    ./build_mac.sh
    ```
 
-**Alternative Manual Build:**
-```bash
-# Install PyInstaller
-python3 -m pip install pyinstaller
+**Interactive Build Features:**
+- **Smart Dependency Checking**: Verifies Python version, pip, and required modules before building
+- **Installation Strategy Selection**: Choose from multiple installation methods if you encounter permission issues:
+  - Standard install (recommended)
+  - User directory install (fixes externally-managed-environment errors)
+  - Virtual environment (safest approach)
+  - System override (with confirmation)
+- **Comprehensive Validation**: Post-build verification ensures your .app bundle is complete and functional
 
-# Clean previous builds
-rm -rf build dist *.spec
-
-# Build the executable
-pyinstaller --onefile --windowed --name "OrcaSlicer-Config-Manager" main.py
-
-# The script will create the complete .app bundle automatically
-```
+**What Gets Installed:**
+- PyInstaller for building executables
+- Google Drive API libraries for cloud sync (optional)
+- OAuth2 authentication libraries
 
 **Result:**
 - Complete `.app` bundle: `dist/OrcaSlicer Configuration Manager.app`
-- Ready to drag to Applications folder or distribute
+- Full cloud storage integration included
+- Ready for distribution or Applications folder installation
 - Works on macOS 10.15+ (Intel and Apple Silicon compatible)
 
 ---
@@ -52,11 +72,11 @@ pyinstaller --onefile --windowed --name "OrcaSlicer-Config-Manager" main.py
 ### 🪟 Building for Windows
 
 **Requirements:**
-- Windows 10 or later
+- Windows 10 or later  
 - Python 3.7+ installed
 - Must be run on a Windows system
 
-**Build Steps:**
+**Enhanced Build Process:**
 
 1. **Download/Extract the project files to your Windows machine**
 
@@ -65,59 +85,109 @@ pyinstaller --onefile --windowed --name "OrcaSlicer-Config-Manager" main.py
    cd C:\path\to\OrcaSlicer-Config-Manager
    ```
 
-3. **Run the build script:**
+3. **Run the enhanced build script:**
    ```cmd
    build_windows.bat
    ```
 
-**Alternative Manual Build:**
-```cmd
-# Install PyInstaller
-python -m pip install pyinstaller
+**Comprehensive Build Features:**
+- **Full System Validation**: Checks Windows environment, Python version, pip, and all required modules
+- **Smart Dependency Installation**: Installs PyInstaller and cloud storage libraries with fallback options
+- **Real-time Progress**: Shows detailed build progress with error handling
+- **Executable Validation**: Post-build verification ensures the .exe is properly created and functional
+- **File Size Analysis**: Warns if executable size seems incorrect
 
-# Clean previous builds
-rmdir /s /q build dist
-del *.spec
-
-# Build the executable
-pyinstaller --onefile --windowed --name "OrcaSlicer-Config-Manager" main.py
-```
+**What Gets Installed:**
+- PyInstaller for building executables
+- Google Drive API libraries for cloud synchronization
+- OAuth2 authentication support
 
 **Result:**
 - Single executable file: `dist\OrcaSlicer-Config-Manager.exe`
-- Completely standalone (no Python installation needed)
+- Full cloud storage integration included
+- Completely standalone (no Python installation needed on target machines)
 - Compatible with Windows 10+
 
 ---
 
-## Important Notes
-
-### Cross-Platform Building
-- **macOS executables** can only be built on macOS systems
-- **Windows executables** can only be built on Windows systems
-- This is a PyInstaller limitation - it creates executables for the platform it runs on
-
-### Distribution
-- **macOS**: Distribute the entire `.app` bundle folder
-- **Windows**: Distribute the single `.exe` file
-- Both versions are completely self-contained with no external dependencies
-
-### Compatibility
-- **macOS**: Supports macOS 10.15+ (Intel and Apple Silicon)
-- **Windows**: Supports Windows 10+
-- Applications are approximately 13MB in size
-
-### Troubleshooting
-- If you get "application not supported" errors on Mac, ensure you built the executable on a Mac system
-- If Windows Defender flags the executable, this is normal for PyInstaller builds - add an exception if needed
-- Both build scripts will clean previous builds automatically
-
 ## Usage
+
+### 🚀 Getting Started
+
 Once built, simply run the application:
-- **macOS**: Double-click the `.app` bundle
+- **macOS**: Double-click the `.app` bundle or drag to Applications folder
 - **Windows**: Double-click the `.exe` file
 
-The application provides a simple GUI for:
-- Saving OrcaSlicer configuration backups
-- Loading/restoring configurations
-- Comparing current settings with saved backups
+### 📋 Core Operations
+
+**Configuration Management:**
+- **Save Configuration**: Creates timestamped ZIP backups of all OrcaSlicer settings
+- **Load Configuration**: Restores configurations with progress tracking
+- **Compare with Backup**: Detailed diff showing file changes, additions, and deletions
+
+**Cloud Storage Features:**
+- **Connect Cloud Storage**: Authenticate with Google Drive or iCloud Drive
+- **Upload to Cloud**: Sync current configuration to your connected cloud service
+- **Download from Cloud**: Retrieve backups from any connected device
+
+### ☁️ Cloud Storage Setup
+
+**Google Drive:**
+1. Click "🔗 Connect Cloud Storage" 
+2. Select Google Drive
+3. Complete OAuth2 authentication in your browser
+4. Automatically creates "OrcaSlicer Config Manager" folder
+
+**iCloud Drive (macOS):**
+1. Click "🔗 Connect Cloud Storage"
+2. Select iCloud Drive  
+3. Grants access to your iCloud Drive folder
+4. Creates dedicated app folder for backups
+
+**Cross-Device Synchronization:**
+- Upload configurations from any device
+- Download to any authenticated device
+- Automatic conflict resolution
+- Maintains backup history
+
+## Important Notes
+
+### 🔧 Build Requirements
+- **macOS executables** can only be built on macOS systems
+- **Windows executables** can only be built on Windows systems
+- PyInstaller creates platform-specific executables
+
+### 📦 Distribution
+- **macOS**: Distribute the entire `.app` bundle folder
+- **Windows**: Distribute the single `.exe` file
+- Both versions are completely self-contained
+- Cloud features work without additional setup
+
+### 🔒 Security & Privacy
+- Google Drive uses OAuth2 - no passwords stored
+- iCloud uses local filesystem access
+- All credentials stored locally and encrypted
+- No data transmitted except to chosen cloud services
+
+### ⚙️ Compatibility
+- **macOS**: 10.15+ (Intel and Apple Silicon)
+- **Windows**: Windows 10+
+- **File Size**: ~13-15MB with cloud features
+- **Dependencies**: None required on target machines
+
+### 🛠️ Troubleshooting
+
+**macOS Issues:**
+- "Application not supported": Build on actual Mac system
+- "Externally-managed-environment": Use build script's interactive installer selection
+- Permission errors: Try user directory installation option
+
+**Windows Issues:**
+- Windows Defender warnings: Normal for PyInstaller builds, add exception
+- PATH issues: Build script includes Python PATH verification
+- Missing modules: Comprehensive dependency checking prevents build failures
+
+**Cloud Storage Issues:**
+- Google Drive: Requires internet connection for initial setup
+- iCloud: Ensure iCloud Drive is enabled in System Preferences
+- Authentication: Stored locally, re-authenticate if issues persist

@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 from orca_backup import OrcaBackup
 from utils import format_file_size
+from cloud_storage import CloudStorageDialog
 
 class ConfigDiff:
     """Compare two OrcaSlicer configurations"""
@@ -120,6 +121,7 @@ class OrcaBackupGUI:
     def __init__(self):
         self.backup_tool = OrcaBackup()
         self.diff_tool = ConfigDiff(self.backup_tool)
+        self.cloud_dialog = None
         self.root = tk.Tk()
         self.setup_window()
         self.create_widgets()
@@ -161,20 +163,52 @@ class OrcaBackupGUI:
         button_frame = ttk.Frame(main_frame)
         button_frame.pack(fill=tk.X, pady=(0, 15))
         
+        # Local operations row
+        local_frame = ttk.Frame(button_frame)
+        local_frame.pack(fill=tk.X, pady=(0, 10))
+        
         # Save Configuration button
-        save_btn = ttk.Button(button_frame, text="Save Configuration", 
+        save_btn = ttk.Button(local_frame, text="Save Configuration", 
                              command=self.save_configuration, style='Accent.TButton')
         save_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Load Configuration button  
-        load_btn = ttk.Button(button_frame, text="Load Configuration", 
+        load_btn = ttk.Button(local_frame, text="Load Configuration", 
                              command=self.load_configuration, style='Accent.TButton')
         load_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Compare button
-        compare_btn = ttk.Button(button_frame, text="Compare with Backup", 
+        compare_btn = ttk.Button(local_frame, text="Compare with Backup", 
                                 command=self.compare_configurations)
         compare_btn.pack(side=tk.LEFT)
+        
+        # Cloud storage section
+        cloud_frame = ttk.LabelFrame(main_frame, text="Cloud Storage", padding="10")
+        cloud_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        cloud_btn_frame = ttk.Frame(cloud_frame)
+        cloud_btn_frame.pack(fill=tk.X)
+        
+        # Cloud authenticate button
+        auth_btn = ttk.Button(cloud_btn_frame, text="🔗 Connect Cloud Storage", 
+                             command=self.authenticate_cloud)
+        auth_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Cloud upload button
+        upload_btn = ttk.Button(cloud_btn_frame, text="☁️ Upload to Cloud", 
+                               command=self.upload_to_cloud)
+        upload_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        # Cloud download button
+        download_btn = ttk.Button(cloud_btn_frame, text="⬇️ Download from Cloud", 
+                                 command=self.download_from_cloud)
+        download_btn.pack(side=tk.LEFT)
+        
+        # Cloud status
+        self.cloud_status_var = tk.StringVar(value="Not connected to cloud storage")
+        cloud_status_label = ttk.Label(cloud_frame, textvariable=self.cloud_status_var,
+                                      font=('Arial', 9), foreground='gray')
+        cloud_status_label.pack(pady=(5, 0))
         
         # Progress section
         progress_frame = ttk.LabelFrame(main_frame, text="Progress", padding="10")
@@ -438,6 +472,65 @@ class OrcaBackupGUI:
         
         self.results_text.delete(1.0, tk.END)
         self.results_text.insert(tk.END, f"ERROR: Comparison failed: {error}")
+    
+    def authenticate_cloud(self):
+        """Show cloud authentication dialog"""
+        if not self.cloud_dialog:
+            self.cloud_dialog = CloudStorageDialog(self.root)
+        self.cloud_dialog.show_auth_dialog()
+        
+        # Update cloud status after authentication
+        self.root.after(1000, self.update_cloud_status)
+    
+    def upload_to_cloud(self):
+        """Upload current configuration to cloud storage"""
+        if not self.cloud_dialog:
+            self.cloud_dialog = CloudStorageDialog(self.root)
+        
+        # Check if authenticated
+        if not (self.cloud_dialog.google_manager.credentials.get('google_drive') or 
+                self.cloud_dialog.icloud_manager.credentials.get('icloud')):
+            messagebox.showwarning("Not Connected", 
+                                 "Please authenticate with a cloud service first.")
+            return
+        
+        self.cloud_dialog.show_sync_dialog('upload')
+    
+    def download_from_cloud(self):
+        """Download configuration backup from cloud storage"""
+        if not self.cloud_dialog:
+            self.cloud_dialog = CloudStorageDialog(self.root)
+        
+        # Check if authenticated
+        if not (self.cloud_dialog.google_manager.credentials.get('google_drive') or 
+                self.cloud_dialog.icloud_manager.credentials.get('icloud')):
+            messagebox.showwarning("Not Connected", 
+                                 "Please authenticate with a cloud service first.")
+            return
+        
+        self.cloud_dialog.show_sync_dialog('download')
+    
+    def update_cloud_status(self):
+        """Update cloud connection status display"""
+        try:
+            if not self.cloud_dialog:
+                self.cloud_status_var.set("Not connected to cloud storage")
+                return
+            
+            connected_services = []
+            if self.cloud_dialog.google_manager.credentials.get('google_drive'):
+                connected_services.append("Google Drive")
+            if self.cloud_dialog.icloud_manager.credentials.get('icloud'):
+                connected_services.append("iCloud Drive")
+            
+            if connected_services:
+                status = f"Connected: {', '.join(connected_services)}"
+                self.cloud_status_var.set(status)
+            else:
+                self.cloud_status_var.set("Not connected to cloud storage")
+                
+        except Exception:
+            self.cloud_status_var.set("Cloud status unavailable")
     
     def run(self):
         """Start the GUI application"""
