@@ -162,17 +162,17 @@ class OrcaBackupGUI:
         button_frame.pack(fill=tk.X, pady=(0, 15))
         
         # Save Configuration button
-        save_btn = ttk.Button(button_frame, text="💾 Save Configuration", 
+        save_btn = ttk.Button(button_frame, text="Save Configuration", 
                              command=self.save_configuration, style='Accent.TButton')
         save_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Load Configuration button  
-        load_btn = ttk.Button(button_frame, text="📂 Load Configuration", 
+        load_btn = ttk.Button(button_frame, text="Load Configuration", 
                              command=self.load_configuration, style='Accent.TButton')
         load_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Compare button
-        compare_btn = ttk.Button(button_frame, text="🔍 Compare with Backup", 
+        compare_btn = ttk.Button(button_frame, text="Compare with Backup", 
                                 command=self.compare_configurations)
         compare_btn.pack(side=tk.LEFT)
         
@@ -201,12 +201,12 @@ class OrcaBackupGUI:
             
             status = "OrcaSlicer Configuration Status\n"
             status += "=" * 50 + "\n"
-            status += f"Installation found: {'✅ Yes' if info['installation_found'] else '❌ No'}\n"
+            status += f"Installation found: {'Yes' if info['installation_found'] else 'No'}\n"
             
             if info['installation_path']:
                 status += f"Installation path: {info['installation_path']}\n"
             
-            status += f"Configuration found: {'✅ Yes' if info['config_found'] else '❌ No'}\n"
+            status += f"Configuration found: {'Yes' if info['config_found'] else 'No'}\n"
             
             if info['config_path']:
                 status += f"Configuration path: {info['config_path']}\n"
@@ -215,7 +215,7 @@ class OrcaBackupGUI:
                     status += f"Number of files: {info['file_count']}\n"
             
             if not info['config_found']:
-                status += "\n⚠️  OrcaSlicer configuration not found.\n"
+                status += "\nWARNING: OrcaSlicer configuration not found.\n"
                 status += "Please ensure OrcaSlicer is installed and run at least once.\n"
             
             self.status_text.delete(1.0, tk.END)
@@ -264,10 +264,10 @@ class OrcaBackupGUI:
             file_size = format_file_size(Path(filename).stat().st_size)
             self.progress_var.set("Configuration saved successfully")
             
-            result = f"✅ Configuration saved successfully!\n\n"
-            result += f"📁 File: {filename}\n"
-            result += f"📏 Size: {file_size}\n"
-            result += f"🕒 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            result = f"Configuration saved successfully!\n\n"
+            result += f"File: {filename}\n"
+            result += f"Size: {file_size}\n"
+            result += f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             
             self.results_text.delete(1.0, tk.END)
             self.results_text.insert(tk.END, result)
@@ -275,7 +275,7 @@ class OrcaBackupGUI:
             messagebox.showinfo("Success", "Configuration saved successfully!")
         else:
             self.progress_var.set("Save failed")
-            error_msg = f"❌ Failed to save configuration"
+            error_msg = f"ERROR: Failed to save configuration"
             if error:
                 error_msg += f":\n{error}"
             
@@ -322,10 +322,10 @@ class OrcaBackupGUI:
         if success:
             self.progress_var.set("Configuration loaded successfully")
             
-            result = f"✅ Configuration loaded successfully!\n\n"
-            result += f"📁 From: {filename}\n"
-            result += f"🕒 Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-            result += "⚠️  Please restart OrcaSlicer to see the changes.\n"
+            result = f"Configuration loaded successfully!\n\n"
+            result += f"From: {filename}\n"
+            result += f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            result += "Please restart OrcaSlicer to see the changes.\n"
             
             self.results_text.delete(1.0, tk.END)
             self.results_text.insert(tk.END, result)
@@ -336,7 +336,7 @@ class OrcaBackupGUI:
             messagebox.showinfo("Success", "Configuration loaded successfully!\n\nPlease restart OrcaSlicer to see the changes.")
         else:
             self.progress_var.set("Load failed")
-            error_msg = f"❌ Failed to load configuration"
+            error_msg = f"ERROR: Failed to load configuration"
             if error:
                 error_msg += f":\n{error}"
             
@@ -378,14 +378,14 @@ class OrcaBackupGUI:
         
         if 'error' in comparison:
             self.results_text.delete(1.0, tk.END)
-            self.results_text.insert(tk.END, f"❌ Comparison failed: {comparison['error']}")
+            self.results_text.insert(tk.END, f"ERROR: Comparison failed: {comparison['error']}")
             return
         
         # Build detailed comparison report
-        report = f"🔍 Configuration Comparison Results\n"
+        report = f"Configuration Comparison Results\n"
         report += "=" * 60 + "\n"
-        report += f"📁 Backup file: {filename}\n"
-        report += f"🕒 Comparison date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        report += f"Backup file: {filename}\n"
+        report += f"Comparison date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
         
         # Summary
         total_current = len(comparison['current_files'])
@@ -395,7 +395,7 @@ class OrcaBackupGUI:
         only_current = len(comparison['only_in_current'])
         only_backup = len(comparison['only_in_backup'])
         
-        report += "📊 Summary:\n"
+        report += "Summary:\n"
         report += f"   Current configuration files: {total_current}\n"
         report += f"   Backup configuration files: {total_backup}\n"
         report += f"   Common files: {total_common}\n"
@@ -404,12 +404,12 @@ class OrcaBackupGUI:
         report += f"   Only in backup: {only_backup}\n\n"
         
         if total_different == 0 and only_current == 0 and only_backup == 0:
-            report += "✅ Configurations are identical!\n"
+            report += "Configurations are identical!\n"
         else:
-            report += "⚠️  Configurations have differences:\n\n"
+            report += "Configurations have differences:\n\n"
             
             if comparison['different_files']:
-                report += "📝 Files with differences:\n"
+                report += "Files with differences:\n"
                 for diff in comparison['different_files']:
                     report += f"   • {diff['file']} - {diff['reason']}\n"
                     report += f"     Current: {format_file_size(diff['current_size'])}, "
@@ -417,13 +417,13 @@ class OrcaBackupGUI:
                 report += "\n"
             
             if comparison['only_in_current']:
-                report += "➕ Files only in current configuration:\n"
+                report += "Files only in current configuration:\n"
                 for file in sorted(comparison['only_in_current']):
                     report += f"   • {file}\n"
                 report += "\n"
             
             if comparison['only_in_backup']:
-                report += "➖ Files only in backup:\n"
+                report += "Files only in backup:\n"
                 for file in sorted(comparison['only_in_backup']):
                     report += f"   • {file}\n"
                 report += "\n"
@@ -437,7 +437,7 @@ class OrcaBackupGUI:
         self.progress_var.set("Comparison failed")
         
         self.results_text.delete(1.0, tk.END)
-        self.results_text.insert(tk.END, f"❌ Comparison failed: {error}")
+        self.results_text.insert(tk.END, f"ERROR: Comparison failed: {error}")
     
     def run(self):
         """Start the GUI application"""
