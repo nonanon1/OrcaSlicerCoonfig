@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 from datetime import datetime
 from orca_backup import OrcaBackup
-from utils import format_file_size
+from utils import format_file_size, OrcaSlicerProcessDetector
 from cloud_storage import CloudStorageDialog
 
 class ConfigDiff:
@@ -122,9 +122,12 @@ class OrcaBackupGUI:
         self.backup_tool = OrcaBackup()
         self.diff_tool = ConfigDiff(self.backup_tool)
         self.cloud_dialog = None
+        self.process_detector = OrcaSlicerProcessDetector()
+        self.read_only_mode = False
         self.root = tk.Tk()
         self.setup_window()
         self.create_widgets()
+        self.check_orcaslicer_running()
         self.update_status()
     
     def setup_window(self):
@@ -168,14 +171,14 @@ class OrcaBackupGUI:
         local_frame.pack(fill=tk.X, pady=(0, 10))
         
         # Save Configuration button
-        save_btn = ttk.Button(local_frame, text="Save Configuration", 
-                             command=self.save_configuration, style='Accent.TButton')
-        save_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.save_btn = ttk.Button(local_frame, text="Save Configuration", 
+                                  command=self.save_configuration, style='Accent.TButton')
+        self.save_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Load Configuration button  
-        load_btn = ttk.Button(local_frame, text="Load Configuration", 
-                             command=self.load_configuration, style='Accent.TButton')
-        load_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.load_btn = ttk.Button(local_frame, text="Load Configuration", 
+                                  command=self.load_configuration, style='Accent.TButton')
+        self.load_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Compare button
         compare_btn = ttk.Button(local_frame, text="Compare with Backup", 
@@ -195,9 +198,9 @@ class OrcaBackupGUI:
         auth_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Cloud upload button
-        upload_btn = ttk.Button(cloud_btn_frame, text="☁️ Upload to Cloud", 
-                               command=self.upload_to_cloud)
-        upload_btn.pack(side=tk.LEFT, padx=(0, 10))
+        self.upload_btn = ttk.Button(cloud_btn_frame, text="☁️ Upload to Cloud", 
+                                    command=self.upload_to_cloud)
+        self.upload_btn.pack(side=tk.LEFT, padx=(0, 10))
         
         # Cloud download button
         download_btn = ttk.Button(cloud_btn_frame, text="⬇️ Download from Cloud", 
@@ -235,6 +238,12 @@ class OrcaBackupGUI:
             
             status = "OrcaSlicer Configuration Status\n"
             status += "=" * 50 + "\n"
+            
+            # Add read-only mode warning if applicable
+            if self.read_only_mode:
+                status += "⚠️ READ-ONLY MODE ACTIVE\n"
+                status += "OrcaSlicer is running - only backup/compare functions available\n\n"
+            
             status += f"Installation found: {'Yes' if info['installation_found'] else 'No'}\n"
             
             if info['installation_path']:
@@ -320,6 +329,13 @@ class OrcaBackupGUI:
     
     def load_configuration(self):
         """Load configuration from a zip file"""
+        # Check if in read-only mode
+        if self.read_only_mode:
+            messagebox.showwarning("Read-Only Mode", 
+                                 "Cannot restore configurations while OrcaSlicer is running.\n"
+                                 "Please close OrcaSlicer first to enable restore functionality.")
+            return
+        
         filename = filedialog.askopenfilename(
             title="Select Configuration Backup",
             filetypes=[("Zip files", "*.zip"), ("All files", "*.*")]
@@ -484,6 +500,13 @@ class OrcaBackupGUI:
     
     def upload_to_cloud(self):
         """Upload current configuration to cloud storage"""
+        # Check if in read-only mode
+        if self.read_only_mode:
+            messagebox.showwarning("Read-Only Mode", 
+                                 "Cannot upload configurations while OrcaSlicer is running.\n"
+                                 "Please close OrcaSlicer first to enable upload functionality.")
+            return
+        
         if not self.cloud_dialog:
             self.cloud_dialog = CloudStorageDialog(self.root)
         
@@ -531,6 +554,127 @@ class OrcaBackupGUI:
                 
         except Exception:
             self.cloud_status_var.set("Cloud status unavailable")
+    
+    def check_orcaslicer_running(self):
+        """Check if OrcaSlicer is running and handle accordingly"""
+        if not self.process_detector.is_orcaslicer_running():
+            # OrcaSlicer not running, proceed normally
+            return
+        
+        # OrcaSlicer is running, show warning and wait
+        self.show_orcaslicer_warning()
+    
+    def show_orcaslicer_warning(self):
+        """Show warning about OrcaSlicer running and wait for shutdown"""
+        warning_window = tk.Toplevel(self.root)
+        warning_window.title("OrcaSlicer Running")
+        warning_window.geometry("500x300")
+        warning_window.resizable(False, False)
+        
+        # Center the warning window
+        warning_window.transient(self.root)
+        warning_window.grab_set()
+        
+        # Main frame
+        main_frame = ttk.Frame(warning_window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Warning message
+        warning_label = ttk.Label(main_frame, 
+                                 text="⚠️ OrcaSlicer is currently running",
+                                 font=('Arial', 14, 'bold'))
+        warning_label.pack(pady=(0, 10))
+        
+        info_text = ("To prevent configuration conflicts, please close OrcaSlicer "
+                    "before proceeding with backup or restore operations.\n\n"
+                    "Waiting for OrcaSlicer to close...")
+        info_label = ttk.Label(main_frame, text=info_text, wraplength=450)
+        info_label.pack(pady=(0, 20))
+        
+        # Progress bar
+        progress_var = tk.StringVar(value="Checking for OrcaSlicer shutdown...")
+        progress_label = ttk.Label(main_frame, textvariable=progress_var)
+        progress_label.pack(pady=(0, 10))
+        
+        progress_bar = ttk.Progressbar(main_frame, mode='indeterminate')
+        progress_bar.pack(fill=tk.X, pady=(0, 20))
+        progress_bar.start()
+        
+        # Buttons frame
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        # Continue in read-only mode button
+        readonly_btn = ttk.Button(button_frame, text="Continue in Backup/Read Mode",
+                                 command=lambda: self.enable_readonly_mode(warning_window))
+        readonly_btn.pack(side=tk.RIGHT, padx=(10, 0))
+        
+        # Force check button
+        check_btn = ttk.Button(button_frame, text="Check Again",
+                              command=lambda: self.manual_check_orcaslicer(warning_window))
+        check_btn.pack(side=tk.RIGHT)
+        
+        # Start automatic checking
+        self.wait_for_orcaslicer_shutdown(warning_window, progress_var, progress_bar)
+    
+    def wait_for_orcaslicer_shutdown(self, warning_window, progress_var, progress_bar):
+        """Wait for OrcaSlicer to shut down with periodic checking"""
+        def check_shutdown():
+            result = self.process_detector.wait_for_shutdown(max_wait_seconds=20, check_interval=2)
+            
+            if result['shutdown']:
+                # OrcaSlicer shut down successfully
+                warning_window.destroy()
+                messagebox.showinfo("Ready", 
+                                  f"OrcaSlicer has been closed. Ready to proceed!\n"
+                                  f"Shutdown detected after {result['time_waited']:.1f} seconds.")
+            else:
+                # Timeout reached
+                progress_bar.stop()
+                progress_var.set("OrcaSlicer still running after 20 seconds")
+                messagebox.showwarning("Still Running", 
+                                     "OrcaSlicer is still running after 20 seconds of waiting.\n"
+                                     "You can continue in backup/read-only mode or manually close OrcaSlicer.")
+        
+        # Run the check in a separate thread to avoid freezing the GUI
+        threading.Thread(target=check_shutdown, daemon=True).start()
+    
+    def manual_check_orcaslicer(self, warning_window):
+        """Manual check if OrcaSlicer is still running"""
+        if not self.process_detector.is_orcaslicer_running():
+            warning_window.destroy()
+            messagebox.showinfo("Ready", "OrcaSlicer has been closed. Ready to proceed!")
+        else:
+            messagebox.showinfo("Still Running", 
+                               "OrcaSlicer is still running. Please close it to continue with full functionality.")
+    
+    def enable_readonly_mode(self, warning_window):
+        """Enable read-only mode and close warning"""
+        self.read_only_mode = True
+        warning_window.destroy()
+        
+        # Update UI to show read-only mode
+        self.update_ui_for_readonly_mode()
+        
+        messagebox.showinfo("Read-Only Mode", 
+                           "Application is now in backup/read-only mode.\n"
+                           "You can backup configurations and compare with existing backups, "
+                           "but cannot restore configurations while OrcaSlicer is running.")
+    
+    def update_ui_for_readonly_mode(self):
+        """Update UI elements for read-only mode"""
+        # Disable modification buttons
+        self.load_btn.configure(state='disabled')
+        self.upload_btn.configure(state='disabled')
+        
+        # Update button texts to indicate limitations
+        self.save_btn.configure(text="Backup Configuration (Read-Only)")
+        
+        # Update window title
+        self.root.title("OrcaSlicer Configuration Manager (Read-Only Mode)")
+        
+        # Update status to show read-only mode
+        self.update_status()
     
     def run(self):
         """Start the GUI application"""

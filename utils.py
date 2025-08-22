@@ -4,8 +4,15 @@ Utility classes and functions for OrcaSlicer path detection and file validation
 
 import os
 import sys
+import time
 import zipfile
 from pathlib import Path
+
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 
 class OrcaSlicerPaths:
     """Handle OrcaSlicer path detection across different platforms"""
@@ -205,3 +212,110 @@ def format_file_size(size_bytes):
             return f"{size_bytes:.1f} {unit}"
         size_bytes /= 1024.0
     return f"{size_bytes:.1f} TB"
+
+class OrcaSlicerProcessDetector:
+    """Lightweight OrcaSlicer process detection"""
+    
+    def __init__(self):
+        self.process_names = ['orcaslicer', 'orcaslicer.exe', 'OrcaSlicer', 'OrcaSlicer.exe']
+    
+    def is_orcaslicer_running(self):
+        """
+        Check if OrcaSlicer process is currently running
+        
+        Returns:
+            bool: True if OrcaSlicer is running, False otherwise
+        """
+        if not PSUTIL_AVAILABLE:
+            # Fallback to basic OS commands if psutil not available
+            return self._fallback_process_check()
+        
+        try:
+            import psutil as ps
+            for process in ps.process_iter(['name', 'exe']):
+                try:
+                    process_info = process.info
+                    process_name = process_info.get('name', '').lower()
+                    process_exe = process_info.get('exe', '')
+                    
+                    # Check process name
+                    if any(name.lower() in process_name for name in self.process_names):
+                        return True
+                    
+                    # Check executable path
+                    if process_exe and any(name.lower() in process_exe.lower() for name in self.process_names):
+                        return True
+                        
+                except (Exception):
+                    # Handle any psutil exceptions
+                    continue
+                    
+        except Exception:
+            # If psutil fails, fallback to OS commands
+            return self._fallback_process_check()
+        
+        return False
+    
+    def _fallback_process_check(self):
+        """Fallback process detection using OS commands"""
+        import subprocess
+        
+        try:
+            if sys.platform.startswith('win'):
+                # Windows: use tasklist
+                result = subprocess.run(
+                    ['tasklist', '/fi', 'imagename eq OrcaSlicer.exe'],
+                    capture_output=True, text=True, timeout=5
+                )
+                return 'OrcaSlicer.exe' in result.stdout
+            
+            elif sys.platform == 'darwin':
+                # macOS: use pgrep
+                result = subprocess.run(
+                    ['pgrep', '-i', 'orcaslicer'],
+                    capture_output=True, text=True, timeout=5
+                )
+                return result.returncode == 0
+            
+            else:
+                # Linux: use pgrep
+                result = subprocess.run(
+                    ['pgrep', '-i', 'orcaslicer'],
+                    capture_output=True, text=True, timeout=5
+                )
+                return result.returncode == 0
+                
+        except Exception:
+            # If all else fails, assume not running
+            return False
+    
+    def wait_for_shutdown(self, max_wait_seconds=20, check_interval=2):
+        """
+        Wait for OrcaSlicer to shut down with periodic checking
+        
+        Args:
+            max_wait_seconds (int): Maximum time to wait in seconds
+            check_interval (int): How often to check in seconds
+            
+        Returns:
+            dict: Result with 'shutdown' (bool) and 'time_waited' (float)
+        """
+        start_time = time.time()
+        checks_made = 0
+        
+        while time.time() - start_time < max_wait_seconds:
+            if not self.is_orcaslicer_running():
+                return {
+                    'shutdown': True,
+                    'time_waited': time.time() - start_time,
+                    'checks_made': checks_made
+                }
+            
+            checks_made += 1
+            time.sleep(check_interval)
+        
+        return {
+            'shutdown': False,
+            'time_waited': time.time() - start_time,
+            'checks_made': checks_made
+        }
