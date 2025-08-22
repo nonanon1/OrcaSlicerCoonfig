@@ -81,7 +81,57 @@ else:
 
 # Install PyInstaller
 echo "🔧 Installing PyInstaller..."
-python3 -m pip install --upgrade pyinstaller
+
+# Try different installation methods for externally-managed environments
+if python3 -m pip install --upgrade pyinstaller 2>/dev/null; then
+    echo "✅ PyInstaller installed successfully"
+elif python3 -m pip install --user --upgrade pyinstaller 2>/dev/null; then
+    echo "✅ PyInstaller installed successfully (user install)"
+    # Update PATH to include user bin directory
+    export PATH="$HOME/.local/bin:$HOME/Library/Python/$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/bin:$PATH"
+elif python3 -m pip install --break-system-packages --upgrade pyinstaller 2>/dev/null; then
+    echo "✅ PyInstaller installed successfully (system packages)"
+    echo "⚠️  Warning: Used --break-system-packages flag"
+else
+    echo "❌ Error: Could not install PyInstaller"
+    echo "   This is likely due to an externally-managed Python environment."
+    echo ""
+    echo "   Try one of these solutions:"
+    echo "   1. Create a virtual environment:"
+    echo "      python3 -m venv build_env"
+    echo "      source build_env/bin/activate"
+    echo "      pip install pyinstaller"
+    echo "      pyinstaller --onefile --windowed main.py"
+    echo ""
+    echo "   2. Use Homebrew Python:"
+    echo "      brew install python"
+    echo "      /opt/homebrew/bin/python3 -m pip install pyinstaller"
+    echo ""
+    echo "   3. Install with --user flag manually:"
+    echo "      python3 -m pip install --user pyinstaller"
+    echo "      ~/.local/bin/pyinstaller --onefile --windowed main.py"
+    echo ""
+    exit 1
+fi
+
+# Verify PyInstaller is available
+if ! command -v pyinstaller &> /dev/null; then
+    echo "⚠️  PyInstaller not found in PATH, checking common locations..."
+    
+    # Check user local bin
+    if [ -f "$HOME/.local/bin/pyinstaller" ]; then
+        export PATH="$HOME/.local/bin:$PATH"
+        echo "✅ Found PyInstaller in user local bin"
+    # Check Python user bin
+    elif [ -f "$HOME/Library/Python/$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/bin/pyinstaller" ]; then
+        export PATH="$HOME/Library/Python/$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/bin:$PATH"
+        echo "✅ Found PyInstaller in Python user bin"
+    else
+        echo "❌ Error: PyInstaller installed but not accessible"
+        echo "   Try running: export PATH=\"\$HOME/.local/bin:\$PATH\""
+        exit 1
+    fi
+fi
 
 # Clean previous builds
 rm -rf build dist *.spec
