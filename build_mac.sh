@@ -82,36 +82,97 @@ else:
 # Install PyInstaller
 echo "🔧 Installing PyInstaller..."
 
-# Try different installation methods for externally-managed environments
-if python3 -m pip install --upgrade pyinstaller 2>/dev/null; then
-    echo "✅ PyInstaller installed successfully"
-elif python3 -m pip install --user --upgrade pyinstaller 2>/dev/null; then
-    echo "✅ PyInstaller installed successfully (user install)"
-    # Update PATH to include user bin directory
-    export PATH="$HOME/.local/bin:$HOME/Library/Python/$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/bin:$PATH"
-elif python3 -m pip install --break-system-packages --upgrade pyinstaller 2>/dev/null; then
-    echo "✅ PyInstaller installed successfully (system packages)"
-    echo "⚠️  Warning: Used --break-system-packages flag"
+# Check if PyInstaller is already installed
+if command -v pyinstaller &> /dev/null; then
+    echo "✅ PyInstaller already available"
+    PYINSTALLER_INSTALLED=true
 else
-    echo "❌ Error: Could not install PyInstaller"
-    echo "   This is likely due to an externally-managed Python environment."
+    echo "PyInstaller not found. Please choose an installation method:"
     echo ""
-    echo "   Try one of these solutions:"
-    echo "   1. Create a virtual environment:"
-    echo "      python3 -m venv build_env"
-    echo "      source build_env/bin/activate"
-    echo "      pip install pyinstaller"
-    echo "      pyinstaller --onefile --windowed main.py"
+    echo "1. Standard install (recommended for most systems)"
+    echo "2. User install (install to your user directory only)"
+    echo "3. Virtual environment (safest, creates isolated environment)"
+    echo "4. Override system packages (use with caution)"
+    echo "5. Exit and install manually"
     echo ""
-    echo "   2. Use Homebrew Python:"
-    echo "      brew install python"
-    echo "      /opt/homebrew/bin/python3 -m pip install pyinstaller"
-    echo ""
-    echo "   3. Install with --user flag manually:"
-    echo "      python3 -m pip install --user pyinstaller"
-    echo "      ~/.local/bin/pyinstaller --onefile --windowed main.py"
-    echo ""
-    exit 1
+    
+    while true; do
+        read -p "Select option [1-5]: " choice
+        case $choice in
+            1)
+                echo "Installing PyInstaller with standard method..."
+                if python3 -m pip install --upgrade pyinstaller; then
+                    echo "✅ PyInstaller installed successfully"
+                    PYINSTALLER_INSTALLED=true
+                    break
+                else
+                    echo "❌ Standard install failed. Try another option."
+                    echo ""
+                fi
+                ;;
+            2)
+                echo "Installing PyInstaller to user directory..."
+                if python3 -m pip install --user --upgrade pyinstaller; then
+                    echo "✅ PyInstaller installed successfully (user install)"
+                    # Update PATH to include user bin directory
+                    export PATH="$HOME/.local/bin:$HOME/Library/Python/$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/bin:$PATH"
+                    PYINSTALLER_INSTALLED=true
+                    break
+                else
+                    echo "❌ User install failed. Try another option."
+                    echo ""
+                fi
+                ;;
+            3)
+                echo "Creating virtual environment..."
+                if python3 -m venv build_env && source build_env/bin/activate && pip install pyinstaller; then
+                    echo "✅ PyInstaller installed in virtual environment"
+                    echo "ℹ️  Using virtual environment for build"
+                    PYINSTALLER_INSTALLED=true
+                    USING_VENV=true
+                    break
+                else
+                    echo "❌ Virtual environment setup failed. Try another option."
+                    echo ""
+                fi
+                ;;
+            4)
+                echo "⚠️  Warning: This will override system package management"
+                read -p "Are you sure you want to continue? [y/N]: " confirm
+                if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
+                    echo "Installing PyInstaller with system override..."
+                    if python3 -m pip install --break-system-packages --upgrade pyinstaller; then
+                        echo "✅ PyInstaller installed successfully (system override)"
+                        PYINSTALLER_INSTALLED=true
+                        break
+                    else
+                        echo "❌ System override install failed. Try another option."
+                        echo ""
+                    fi
+                else
+                    echo "Operation cancelled. Choose another option."
+                    echo ""
+                fi
+                ;;
+            5)
+                echo "Build cancelled. Please install PyInstaller manually and run the script again."
+                echo ""
+                echo "Manual installation options:"
+                echo "  • Virtual environment: python3 -m venv env && source env/bin/activate && pip install pyinstaller"
+                echo "  • User install: python3 -m pip install --user pyinstaller"
+                echo "  • Homebrew: brew install pyinstaller"
+                exit 0
+                ;;
+            *)
+                echo "Invalid option. Please choose 1-5."
+                ;;
+        esac
+    done
+    
+    if [[ "$PYINSTALLER_INSTALLED" != "true" ]]; then
+        echo "❌ Error: PyInstaller installation failed"
+        exit 1
+    fi
 fi
 
 # Verify PyInstaller is available
